@@ -18,6 +18,7 @@ import logging
 import requests
 from bottle import get, abort, run, request, response, redirect
 import regex as re
+import bisect
 
 RPS_BY_DATABASE = dict()
 
@@ -41,7 +42,7 @@ INFLUXDB_GROUP_BY_QUERY_PATTERN = re.compile(r"""
     \s+                 # 1 or more whitespaces
     time\(              # time with opening bracket
     ([\.\d]+)           # minimal 1 digit                                               group 2  (number of time units)
-    ([s|m|h|d|w])       # the group by unit                                             group 3  (time unit)
+    ([s|m|h|d|w]+)       # the group by unit                                             group 3  (time unit)
     \)                  # closing bracket
     .*                  # rest of the request - don't care
     $                   # end of string
@@ -69,6 +70,22 @@ def build_logger():
     h.setFormatter(f)
     l.addHandler(h)
     return l
+    
+seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "y": 31536000}
+
+def get_ret_policy(time, rps_by_interval) :
+    keys=rps_by_interval.keys()
+    min_key=min(keys)
+    keys.sort()
+    if 'ms' in time:
+        return rps_by_interval[min_key]
+	seconds=float(time[:-1]) * seconds_per_unit[time[-1]]
+	
+	n = bisect.bisect_left(keys, int(seconds))
+	if keys[n:n+1] == [seconds]:
+	    return rps_by_interval[keys[n]]
+	else:
+	    return rps_by_interval[keys[n-1]]
     
 @get('/<path:path>')
 def proxy_influx_query(path):
@@ -110,7 +127,11 @@ def modify_queries(req):
         database = req['db']
         if database not in RPS_BY_DATABASE:
             update_rp_cache(database)
-        return "\n".join([modify_query(database, line) for line in query_string.split("\n")])
+        lines = query_string.split("\n")
+        newlines = []
+        for line in lines:
+            newlines.append(";".join([modify_query(database, seg) for seg in line.split(";")]))
+        return "\n".join(newlines)
     except Exception as e:
         LOGGER.exception("Error (%s) modifying query: %s", type(e).__class__, e.message, exc_info=True)
         return query_string
@@ -131,10 +152,12 @@ def modify_query(database, query):
         else:
             LOGGER.debug("No _default_ interval to retention policy mapping was configured!")
             return query
-    if interval not in rps_by_interval:
-        LOGGER.debug("Unknown interval [%s] for database [%s]", interval, database)
-        return query
-    rp = rps_by_interval[interval]
+#    if interval not in rps_by_interval:
+#        LOGGER.debug("Unknown interval [%s] for database [%s]", interval, database)
+#        return query
+#    rp = rps_by_interval[interval]
+    rp = get_ret_policy(interval, rps_by_interval)
+    
     if rp not in RPS_BY_DATABASE[database]:
         LOGGER.debug("Unknown retention policy [%s] for database [%s]", rp, database)
         return query

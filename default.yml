@@ -25,22 +25,22 @@ bind:
 # in a given mapping.
 rps_by_interval:
   # Example below replicates the default behavior of Grafana.
-  _default_:
-    0.1s: default
-    1s:   default
-    5s:   default
-    10s:  default
-    30s:  default
-    1m:   default
-    5m:   default
-    10m:  default
-    30m:  default
-    1h:   default
-    3h:   default
-    12h:  default
-    1d:   default
-    7d:   default
-    30d:  default
+  # _default_:
+  #   0.1s: default
+  #   1s:   default
+  #   5s:   default
+  #   10s:  default
+  #   30s:  default
+  #   1m:   default
+  #   5m:   default
+  #   10m:  default
+  #   30m:  default
+  #   1h:   default
+  #   3h:   default
+  #   12h:  default
+  #   1d:   default
+  #   7d:   default
+  #   30d:  default
   # Example below is more complete:
   # 
   # _default_:
@@ -59,3 +59,11 @@ rps_by_interval:
   #   1d:   24hour
   #   7d:   24hour
   #   30d:  24hour
+  _default_:
+    0:      default
+    10:     10sec
+    30:     30sec
+    60:     1min
+    300:    5min
+    1800:   30min
+    3600:   1hour
